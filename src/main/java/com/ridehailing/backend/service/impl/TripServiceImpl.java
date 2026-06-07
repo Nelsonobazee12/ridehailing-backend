@@ -1,6 +1,7 @@
 package com.ridehailing.backend.service.impl;
 
 import com.ridehailing.backend.exception.AppException;
+import com.ridehailing.backend.kafka.producer.TripEventProducer;
 import com.ridehailing.backend.model.dto.request.CancelTripRequest;
 import com.ridehailing.backend.model.dto.request.RatingRequest;
 import com.ridehailing.backend.model.dto.request.TripRequest;
@@ -33,6 +34,7 @@ public class TripServiceImpl implements TripService {
     private final UserRepository userRepository;
     private final DriverProfileRepository driverProfileRepository;
     private final PricingService pricingService;
+    private final TripEventProducer tripEventProducer;
 
     @Override
     public FareEstimateResponse estimateFare(Double pickupLat, Double pickupLng,
@@ -75,6 +77,7 @@ public class TripServiceImpl implements TripService {
                 .build();
 
         tripRepository.save(trip);
+        tripEventProducer.publishTripRequested(toResponse(trip));
         log.info("Trip {} requested by rider {}", trip.getId(), rider.getEmail());
         return toResponse(trip);
     }
@@ -110,6 +113,7 @@ public class TripServiceImpl implements TripService {
         driverProfileRepository.save(profile);
 
         tripRepository.save(trip);
+        tripEventProducer.publishTripAccepted(toResponse(trip));
         log.info("Trip {} accepted by driver {}", tripId, driverEmail);
         return toResponse(trip);
     }
@@ -187,6 +191,7 @@ public class TripServiceImpl implements TripService {
         }
 
         tripRepository.save(trip);
+        tripEventProducer.publishTripCancelled(toResponse(trip));
         log.info("Trip {} cancelled by {}", tripId, email);
         return toResponse(trip);
     }
@@ -272,6 +277,7 @@ public class TripServiceImpl implements TripService {
             profile.setTotalTrips(profile.getTotalTrips() + 1);
             profile.setTotalEarnings(profile.getTotalEarnings() + trip.getDriverEarnings());
             driverProfileRepository.save(profile);
+            tripEventProducer.publishTripCompleted(toResponse(trip));
         });
     }
 
