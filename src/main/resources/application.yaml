@@ -3,15 +3,15 @@ spring:
     name: ridehailing-backend
 
   datasource:
-    url: jdbc:postgresql://localhost:5438/ridehailing
-    username: postgres
-    password: postgres
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/ridehailing}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver
 
   jpa:
     hibernate:
       ddl-auto: update
-    show-sql: true
+    show-sql: false
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
@@ -19,12 +19,12 @@ spring:
 
   data:
     redis:
-      host: localhost
-      port: 6379
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
       timeout: 60000
 
   kafka:
-    bootstrap-servers: localhost:9092
+    bootstrap-servers: ${KAFKA_SERVERS:localhost:9092}
     consumer:
       group-id: ridehailing-group
       auto-offset-reset: earliest
@@ -37,32 +37,27 @@ spring:
   websocket:
     allowed-origins: "*"
 
-# JWT
 app:
   jwt:
-    secret: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
-    expiration: 86400000        # 24 hours in ms
-    refresh-expiration: 604800000  # 7 days in ms
+    secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
+    expiration: ${JWT_EXPIRATION:86400000}
+    refresh-expiration: ${JWT_REFRESH_EXPIRATION:604800000}
 
-  # Paystack
   paystack:
-    secret-key: ${PAYSTACK_SECRET_KEY:sk_test_34e7df8065fb09e507319eb3bc3fbb4911bd7e0e}
-    base-url: https://api.paystack.co
+    secret-key: ${PAYSTACK_SECRET_KEY:your-paystack-secret-key}
+    base-url: ${PAYSTACK_BASE_URL:https://api.paystack.co}
 
-  # Termii
   termii:
     api-key: ${TERMII_API_KEY:your-termii-api-key}
-    base-url: https://api.ng.termii.com
-    sender-id: RideHailing
+    base-url: ${TERMII_BASE_URL:https://api.ng.termii.com}
+    sender-id: ${TERMII_SENDER_ID:RideHailing}
 
-# Swagger
 springdoc:
   api-docs:
     path: /api-docs
   swagger-ui:
     path: /swagger-ui.html
 
-# Actuator
 management:
   endpoints:
     web:
