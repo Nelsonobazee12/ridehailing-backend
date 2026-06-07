@@ -43,4 +43,8 @@ public class TripEventProducer {
                     trip.getId(), e.getMessage());
         }
     }
+
+    public void publishTripStatusUpdated(TripResponse trip) {
+        publish(KafkaTopicConfig.TRIP_STATUS_UPDATED_TOPIC, trip);
+    }
 }

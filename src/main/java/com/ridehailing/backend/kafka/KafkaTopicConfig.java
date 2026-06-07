@@ -12,6 +12,8 @@ public class KafkaTopicConfig {
     public static final String TRIP_ACCEPTED_TOPIC = "trip.accepted";
     public static final String TRIP_COMPLETED_TOPIC = "trip.completed";
     public static final String TRIP_CANCELLED_TOPIC = "trip.cancelled";
+    public static final String TRIP_STATUS_UPDATED_TOPIC = "trip.status.updated";
+
 
     @Bean
     public NewTopic tripRequestedTopic() {
@@ -31,5 +33,10 @@ public class KafkaTopicConfig {
     @Bean
     public NewTopic tripCancelledTopic() {
         return TopicBuilder.name(TRIP_CANCELLED_TOPIC).partitions(3).replicas(1).build();
+    }
+
+    @Bean
+    public NewTopic tripStatusUpdatedTopic() {
+        return TopicBuilder.name(TRIP_STATUS_UPDATED_TOPIC).partitions(3).replicas(1).build();
     }
 }

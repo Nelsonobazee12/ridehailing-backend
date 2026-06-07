@@ -46,7 +46,7 @@ app:
 
   # Paystack
   paystack:
-    secret-key: ${PAYSTACK_SECRET_KEY:your-paystack-secret-key}
+    secret-key: ${PAYSTACK_SECRET_KEY:sk_test_34e7df8065fb09e507319eb3bc3fbb4911bd7e0e}
     base-url: https://api.paystack.co
 
   # Termii

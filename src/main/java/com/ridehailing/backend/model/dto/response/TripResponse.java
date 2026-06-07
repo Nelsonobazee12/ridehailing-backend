@@ -21,6 +21,7 @@ public class TripResponse {
     private String driverName;
     private String driverPhone;
     private String plateNumber;
+    private Double driverEarnings;
 
     // Locations
     private Double pickupLatitude;

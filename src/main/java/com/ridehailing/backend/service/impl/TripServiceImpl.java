@@ -150,8 +150,19 @@ public class TripServiceImpl implements TripService {
         }
 
         tripRepository.save(trip);
+
+        TripResponse response = toResponse(trip);
+
+        // Publish Kafka event for every status transition
+        switch (trip.getStatus()) {
+            case DRIVER_EN_ROUTE, ARRIVED, IN_PROGRESS ->
+                    tripEventProducer.publishTripStatusUpdated(response);
+            case COMPLETED ->
+                    tripEventProducer.publishTripCompleted(response);
+        }
+
         log.info("Trip {} status updated to {} by driver {}", tripId, trip.getStatus(), driverEmail);
-        return toResponse(trip);
+        return response;
     }
 
     @Override
@@ -277,7 +288,6 @@ public class TripServiceImpl implements TripService {
             profile.setTotalTrips(profile.getTotalTrips() + 1);
             profile.setTotalEarnings(profile.getTotalEarnings() + trip.getDriverEarnings());
             driverProfileRepository.save(profile);
-            tripEventProducer.publishTripCompleted(toResponse(trip));
         });
     }
 
@@ -319,6 +329,7 @@ public class TripServiceImpl implements TripService {
                         ? trip.getDriver().getFirstName() + " " + trip.getDriver().getLastName()
                         : null)
                 .driverPhone(trip.getDriver() != null ? trip.getDriver().getPhone() : null)
+                .driverEarnings(trip.getDriverEarnings())
                 .plateNumber(driverProfile != null ? driverProfile.getPlateNumber() : null)
                 .pickupLatitude(trip.getPickupLatitude())
                 .pickupLongitude(trip.getPickupLongitude())

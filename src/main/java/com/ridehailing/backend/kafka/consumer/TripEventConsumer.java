@@ -3,6 +3,9 @@ package com.ridehailing.backend.kafka.consumer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ridehailing.backend.kafka.KafkaTopicConfig;
 import com.ridehailing.backend.model.dto.response.TripResponse;
+import com.ridehailing.backend.model.entity.DriverProfile;
+import com.ridehailing.backend.repository.DriverProfileRepository;
+import com.ridehailing.backend.service.SmsService;
 import com.ridehailing.backend.websocket.WebSocketNotificationService;
 import com.ridehailing.backend.websocket.event.TripRequestEvent;
 import com.ridehailing.backend.websocket.event.TripStatusEvent;
@@ -12,6 +15,7 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.Optional;
 
 @Slf4j
 @Service
@@ -19,6 +23,8 @@ import java.time.LocalDateTime;
 public class TripEventConsumer {
 
     private final WebSocketNotificationService notificationService;
+    private final SmsService smsService;
+    private final DriverProfileRepository driverProfileRepository;
     private final ObjectMapper objectMapper;
 
     @KafkaListener(topics = KafkaTopicConfig.TRIP_REQUESTED_TOPIC,
@@ -28,7 +34,6 @@ public class TripEventConsumer {
             TripResponse trip = objectMapper.readValue(message, TripResponse.class);
             log.info("Consumed trip.requested: tripId={}", trip.getId());
 
-            // Notify driver of new trip request
             if (trip.getDriverId() != null) {
                 TripRequestEvent event = TripRequestEvent.builder()
                         .tripId(trip.getId())
@@ -69,6 +74,22 @@ public class TripEventConsumer {
             notificationService.notifyRiderTripStatus(trip.getRiderId(), event);
             notificationService.broadcastTripUpdate(trip.getId(), event);
 
+            // SMS notifications
+            String plateNumber = trip.getPlateNumber() != null ? trip.getPlateNumber() : "N/A";
+            smsService.notifyTripAccepted(
+                    trip.getRiderPhone(),
+                    trip.getRiderName(),
+                    trip.getDriverName(),
+                    plateNumber
+            );
+            if (trip.getDriverPhone() != null) {
+                smsService.notifyDriverTripAccepted(
+                        trip.getDriverPhone(),
+                        trip.getRiderName(),
+                        trip.getPickupAddress()
+                );
+            }
+
         } catch (Exception e) {
             log.error("Error processing trip.accepted: {}", e.getMessage());
         }
@@ -94,6 +115,21 @@ public class TripEventConsumer {
             }
             notificationService.broadcastTripUpdate(trip.getId(), event);
 
+            // SMS notifications
+            smsService.notifyTripCompleted(
+                    trip.getRiderPhone(),
+                    trip.getRiderName(),
+                    trip.getActualFare(),
+                    trip.getDistanceKm()
+            );
+            if (trip.getDriverPhone() != null && trip.getDriverEarnings() != null) {
+                smsService.notifyDriverTripCompleted(
+                        trip.getDriverPhone(),
+                        trip.getDriverName(),
+                        trip.getDriverEarnings()
+                );
+            }
+
         } catch (Exception e) {
             log.error("Error processing trip.completed: {}", e.getMessage());
         }
@@ -118,8 +154,60 @@ public class TripEventConsumer {
                 notificationService.notifyDriverTripStatus(trip.getDriverId(), event);
             }
 
+            // SMS notifications
+            String reason = trip.getCancellationReason() != null
+                    ? trip.getCancellationReason().name() : "Unknown";
+
+            smsService.notifyTripCancelled(
+                    trip.getRiderPhone(), trip.getRiderName(), reason);
+
+            if (trip.getDriverPhone() != null && trip.getDriverName() != null) {
+                smsService.notifyTripCancelled(
+                        trip.getDriverPhone(), trip.getDriverName(), reason);
+            }
+
         } catch (Exception e) {
             log.error("Error processing trip.cancelled: {}", e.getMessage());
+        }
+    }
+
+    @KafkaListener(topics = KafkaTopicConfig.TRIP_STATUS_UPDATED_TOPIC,
+            groupId = "ridehailing-group")
+    public void onTripStatusUpdated(String message) {
+        try {
+            TripResponse trip = objectMapper.readValue(message, TripResponse.class);
+            log.info("Consumed trip.status.updated: tripId={} status={}",
+                    trip.getId(), trip.getStatus());
+
+            String smsMessage = switch (trip.getStatus()) {
+                case DRIVER_EN_ROUTE -> "Your driver is on the way to your pickup location!";
+                case ARRIVED -> "Your driver has arrived at your pickup location!";
+                case IN_PROGRESS -> "Your trip has started. Destination: "
+                        + trip.getDestinationAddress();
+                default -> null;
+            };
+
+            TripStatusEvent event = TripStatusEvent.builder()
+                    .tripId(trip.getId())
+                    .status(trip.getStatus())
+                    .message(smsMessage)
+                    .timestamp(LocalDateTime.now())
+                    .build();
+
+            // Push WebSocket update to both rider and driver
+            notificationService.notifyRiderTripStatus(trip.getRiderId(), event);
+            if (trip.getDriverId() != null) {
+                notificationService.notifyDriverTripStatus(trip.getDriverId(), event);
+            }
+            notificationService.broadcastTripUpdate(trip.getId(), event);
+
+            // Send SMS to rider
+            if (smsMessage != null && trip.getRiderPhone() != null) {
+                smsService.sendSms(trip.getRiderPhone(), smsMessage);
+            }
+
+        } catch (Exception e) {
+            log.error("Error processing trip.status.updated: {}", e.getMessage());
         }
     }
 }
